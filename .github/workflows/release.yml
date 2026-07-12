@@ -60,10 +60,16 @@ jobs:
           new_version="$(cat VERSION)"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
           git add VERSION "${{ inputs.version_snippet }}"
-          # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
-          # so without it this push to development would trigger a dev Deploy
-          git commit -m "chore: release $new_version [skip ci]"
-          git push origin HEAD:development
+          # Nothing staged means VERSION was already finalized (re-run after a
+          # later job failed) — skip the commit so the re-run can proceed
+          if git diff --cached --quiet; then
+            echo "VERSION already finalized at $new_version — nothing to commit"
+          else
+            # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
+            # so without it this push to development would trigger a dev Deploy
+            git commit -m "chore: release $new_version [skip ci]"
+            git push origin HEAD:development
+          fi
 
       # runs can't be renamed after the fact (no such API endpoint, and run-name is
       # fixed at trigger time — before the bump); surface the version in the summary
@@ -75,12 +81,22 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # repo default GITHUB_TOKEN permission is read-only; this job needs to push to main
+      contents: read  # pushes go through the bot token, not GITHUB_TOKEN
     steps:
+      # main requires PRs (Dev & Prd ruleset); the bot app is a bypass actor,
+      # GITHUB_TOKEN is not — pushing with GITHUB_TOKEN fails with GH013
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
       - uses: actions/checkout@v7
         with:
           ref: development  # Checkout development branch
           fetch-depth: 0    # Full history so main/development share a discoverable common ancestor
+          token: ${{ steps.bot-token.outputs.token }}
 
       # Merge development into main
       - name: Merge development to main
@@ -92,8 +108,6 @@ jobs:
           # -X theirs: development is the source of truth; on conflict its side wins
           git merge origin/development --no-ff -X theirs -m "chore: release to production"
           git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # 🚀 Deploy to production
   deploy:
