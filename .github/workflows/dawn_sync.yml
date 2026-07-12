@@ -1,0 +1,63 @@
+---
+name: Dawn Sync
+run-name: "Dawn Sync (dawn_vanilla - ${{ inputs.version }})"
+
+# Reusable workflow — syncs the caller repo's dawn_vanilla branch with
+# upstream Shopify/dawn at a given tag (or latest). No secrets required.
+#
+# Bringing dawn_vanilla's changes onto development is a deliberate manual
+# step from there — it almost always hits real conflicts with Fireball
+# customizations, which need a human/AI reviewing the actual diff, not a
+# CI job blindly auto-resolving or failing silently.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Upstream Dawn tag to sync to (e.g. v15.5.0), or "latest"'
+        required: false
+        type: string
+        default: latest
+
+jobs:
+  # 🔄 Sync dawn_vanilla with upstream Shopify/dawn
+  sync_dawn_vanilla:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # repo default GITHUB_TOKEN permission is read-only; this job needs to push to dawn_vanilla
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: dawn_vanilla
+          fetch-depth: 0    # Full history so dawn_vanilla/upstream share a discoverable common ancestor
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          if [ "${{ inputs.version }}" = "latest" ]; then
+            version=$(
+              git ls-remote --tags --refs https://github.com/Shopify/dawn.git \
+                | awk -F/ '{print $NF}' \
+                | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                | sort -V \
+                | tail -1
+            )
+            echo "Resolved \"latest\" to upstream tag: $version"
+          else
+            version="${{ inputs.version }}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Merge upstream Shopify/dawn ${{ steps.resolve.outputs.version }} into dawn_vanilla
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git remote add upstream https://github.com/Shopify/dawn.git
+          # Fetch only the requested tag — fetching --tags pulls every upstream Dawn version
+          # tag, which can collide with our own same-named release tags (e.g. 1.0.0 exists
+          # both as a Fireball release tag and an old upstream Dawn version).
+          git fetch upstream "refs/tags/${{ steps.resolve.outputs.version }}:refs/tags/${{ steps.resolve.outputs.version }}"
+          # -X theirs: upstream is the source of truth on dawn_vanilla; on conflict its side wins
+          git merge "${{ steps.resolve.outputs.version }}" --no-ff -X theirs -m "chore: sync dawn_vanilla with upstream Shopify/dawn ${{ steps.resolve.outputs.version }}"
+          git push origin dawn_vanilla
+          git push origin "refs/tags/${{ steps.resolve.outputs.version }}"

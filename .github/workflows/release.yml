@@ -1,0 +1,124 @@
+---
+name: Release
+run-name: "Release"
+
+# Reusable workflow — call from a theme repo with `secrets: inherit`.
+# Finalizes VERSION on development, promotes development → main,
+# deploys to production, and publishes a GitHub Release.
+# Release tags have NO v prefix (e.g. 1.0.0), per Fireball versioning:
+# major.minor.patch-build while in development, major.minor.patch on release.
+
+on:
+  workflow_call:
+    inputs:
+      version_snippet:
+        description: 'Theme snippet file updated by version bumps'
+        required: false
+        type: string
+        default: snippets/fireball-version.liquid
+
+jobs:
+  # 🔢 Finalize VERSION (drop the build suffix)
+  version:
+    runs-on: ubuntu-latest
+    concurrency: version-bump-development  # serialize VERSION changes against deploy.yml's bumps
+    permissions:
+      contents: read  # pushes go through the bot token, not GITHUB_TOKEN
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      # GITHUB_TOKEN may not push to development (PR-required branch); the bot app
+      # bypasses that protection. fireball-actions-bot is installed org-wide.
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v7
+        with:
+          ref: development
+          # persist the bot token for git auth — checkout's default GITHUB_TOKEN
+          # extraheader overrides any token embedded in a push URL
+          token: ${{ steps.bot-token.outputs.token }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Finalize VERSION for release
+        id: bump
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          uv run --no-sync invoke version.bump_release
+          new_version="$(cat VERSION)"
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+          git add VERSION "${{ inputs.version_snippet }}"
+          # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
+          # so without it this push to development would trigger a dev Deploy
+          git commit -m "chore: release $new_version [skip ci]"
+          git push origin HEAD:development
+
+      # runs can't be renamed after the fact (no such API endpoint, and run-name is
+      # fixed at trigger time — before the bump); surface the version in the summary
+      - name: Report version
+        run: echo "### Releasing ${{ steps.bump.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+
+  # 🔀 Promote development → main (Production)
+  promote:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # repo default GITHUB_TOKEN permission is read-only; this job needs to push to main
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: development  # Checkout development branch
+          fetch-depth: 0    # Full history so main/development share a discoverable common ancestor
+
+      # Merge development into main
+      - name: Merge development to main
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git fetch origin main
+          git checkout main
+          # -X theirs: development is the source of truth; on conflict its side wins
+          git merge origin/development --no-ff -X theirs -m "chore: release to production"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 🚀 Deploy to production
+  deploy:
+    needs: promote
+    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@1.0.0
+    with:
+      env: prd
+    secrets: inherit
+
+  # 🏷️ Create GitHub Release
+  publish_release:
+    needs: [version, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # repo default GITHUB_TOKEN permission is read-only; creating a release needs write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main  # tag the freshly promoted merge commit, not the dispatch ref
+
+      - name: Create GitHub Release
+        run: >-
+          gh release create "${{ needs.version.outputs.version }}"
+          --target main
+          --title "${{ needs.version.outputs.version }}"
+          --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

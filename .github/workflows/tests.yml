@@ -1,0 +1,110 @@
+---
+name: Tests
+run-name: "Tests (${{ github.head_ref || github.ref_name }})"
+
+# Reusable workflow — call from a repo on pull_request. No secrets required.
+
+on:
+  workflow_call:
+
+jobs:
+  # https://github.com/rhysd/actionlint
+  action_lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Code
+        uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          python-version: "3.14"
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Action Lint
+        run: |
+            uv run --no-sync invoke debug.env
+            uv run --no-sync invoke tests.actionlint
+
+  pylint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Code
+        uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Pylint
+        run: |
+          uv run --no-sync invoke debug.env
+          uv run --no-sync invoke tests.pylint
+
+  ruff_lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Code
+        uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Ruff Lint
+        run: |
+          uv run --no-sync invoke debug.env
+          uv run --no-sync invoke tests.rufflint
+
+  theme_lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli @shopify/theme
+
+      - name: Run theme-check
+        run: shopify theme check
+
+  yaml_lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Code
+        uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          python-version: "3.14"
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Yaml Lint
+        run: |
+            uv run --no-sync invoke debug.env
+            uv run --no-sync invoke tests.yamllint

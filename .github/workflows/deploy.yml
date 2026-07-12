@@ -1,0 +1,108 @@
+---
+name: Deploy
+run-name: "Deploy to ${{ inputs.env || 'dev' }}"
+
+# Reusable workflow — call from a theme repo with `secrets: inherit`.
+# Required caller secrets: BOT_PRIVATE_KEY, SHOPIFY_CLI_THEME_TOKEN,
+# SHOPIFY_FLAG_STORE, SHOPIFY_THEME_ID_DEV, SHOPIFY_THEME_ID_PRD
+# Required caller variable: BOT_APP_ID
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        description: 'Environment (dev or prd)'
+        required: false
+        type: string
+        default: dev
+      version_snippet:
+        description: 'Theme snippet file updated by version bumps'
+        required: false
+        type: string
+        default: snippets/fireball-version.liquid
+
+jobs:
+  # 🔢 Bump VERSION build number (dev deploys only — release.yml owns VERSION for prd)
+  build_version:
+    if: ${{ (inputs.env || 'dev') == 'dev' }}
+    runs-on: ubuntu-latest
+    concurrency: version-bump-development  # serialize VERSION bumps — no racing build numbers
+    permissions:
+      contents: read  # pushes go through the bot token, not GITHUB_TOKEN
+    steps:
+      # GITHUB_TOKEN may not push to development (PR-required branch); the bot app
+      # bypasses that protection. fireball-actions-bot is installed org-wide.
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v7
+        with:
+          ref: development
+          # persist the bot token for git auth — checkout's default GITHUB_TOKEN
+          # extraheader overrides any token embedded in a push URL
+          token: ${{ steps.bot-token.outputs.token }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Bump VERSION
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          uv run --no-sync invoke version.bump_build
+          new_version="$(cat VERSION)"
+          git add VERSION "${{ inputs.version_snippet }}"
+          # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
+          # so without it this push to development would re-run Deploy forever
+          git commit -m "chore: bump VERSION to $new_version [skip ci]"
+          git push origin HEAD:development
+
+  # 🚀 Deploy job
+  deploy:
+    needs: build_version
+    if: ${{ !cancelled() && !failure() }}  # run even when build_version is skipped (prd), not on its failure
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      DEPLOY_ENV: ${{ inputs.env || 'dev' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # dev already has build_version's push; prd (called from release.yml) reads main,
+          # already finalized by release.yml's version + promote jobs
+          ref: ${{ env.DEPLOY_ENV == 'dev' && 'development' || 'main' }}
+
+      # runs can't be renamed after the fact (no such API endpoint, and run-name is
+      # fixed at trigger time — before the bump); surface the version in the summary
+      - name: Report version
+        run: echo "### Deploying $(cat VERSION) to ${{ env.DEPLOY_ENV }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - run: npm install -g @shopify/cli @shopify/theme
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Deploy to ${{ env.DEPLOY_ENV }} Theme
+        run: |
+          uv run --no-sync invoke debug.env
+          uv run --no-sync invoke shopify.deploy --env=${{ env.DEPLOY_ENV }}
+        env:
+          SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}
+          SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_FLAG_STORE }}
+          SHOPIFY_THEME_ID_DEV: ${{ secrets.SHOPIFY_THEME_ID_DEV }}
+          SHOPIFY_THEME_ID_PRD: ${{ secrets.SHOPIFY_THEME_ID_PRD }}
