@@ -79,6 +79,10 @@ on:
 
 jobs:
   release:
+    # called workflows can't elevate beyond the caller's grant (repo default is read-only);
+    # promote pushes main and publish creates the Release
+    permissions:
+      contents: write
     uses: fireballenterprise/workflows/.github/workflows/release.yml@1
     secrets: inherit
 ```
@@ -101,6 +105,10 @@ on:
 
 jobs:
   dawn_sync:
+    # called workflows can't elevate beyond the caller's grant (repo default is read-only);
+    # the sync job pushes to dawn_vanilla
+    permissions:
+      contents: write
     uses: fireballenterprise/workflows/.github/workflows/dawn_sync.yml@1
     with:
       version: ${{ inputs.version || 'latest' }}
