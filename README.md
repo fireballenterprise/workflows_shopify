@@ -2,7 +2,14 @@
 Shared GitHub Actions workflows for all Fireball Enterprise repos. Theme repos contain thin callers only — no copied CI YAML.
 
 ## Versioning
-Tags follow Fireball versioning: NO `v` prefix, `major.minor.patch` (e.g. `1.0.0`). Callers pin a release tag and bump deliberately.
+Tags follow Fireball versioning: NO `v` prefix, `major.minor.patch` (e.g. `1.0.0`). Every release is dual-tagged: the exact version (`1.0.0`) plus a floating major tag (`1`) that is force-moved to the latest `1.x.x` release. Callers reference `@1` to pick up non-breaking updates automatically; pin an exact tag (`@1.0.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag (`2`).
+
+Cutting a release:
+
+```bash
+git tag 1.x.y && git tag -f 1
+git push origin 1.x.y && git push -f origin 1
+```
 
 ## Workflows
 | Workflow | Purpose | Secrets |
@@ -41,7 +48,7 @@ on:
 
 jobs:
   deploy:
-    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@1.0.0
+    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@1
     with:
       env: ${{ inputs.env || 'dev' }}
     secrets: inherit
@@ -59,7 +66,7 @@ on:
 
 jobs:
   tests:
-    uses: fireballenterprise/workflows/.github/workflows/tests.yml@1.0.0
+    uses: fireballenterprise/workflows/.github/workflows/tests.yml@1
 ```
 
 `.github/workflows/release.yml`:
@@ -72,7 +79,7 @@ on:
 
 jobs:
   release:
-    uses: fireballenterprise/workflows/.github/workflows/release.yml@1.0.0
+    uses: fireballenterprise/workflows/.github/workflows/release.yml@1
     secrets: inherit
 ```
 
@@ -94,7 +101,7 @@ on:
 
 jobs:
   dawn_sync:
-    uses: fireballenterprise/workflows/.github/workflows/dawn_sync.yml@1.0.0
+    uses: fireballenterprise/workflows/.github/workflows/dawn_sync.yml@1
     with:
       version: ${{ inputs.version || 'latest' }}
 ```

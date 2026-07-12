@@ -98,7 +98,7 @@ jobs:
   # 🚀 Deploy to production
   deploy:
     needs: promote
-    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@1.0.0
+    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@1
     with:
       env: prd
     secrets: inherit
