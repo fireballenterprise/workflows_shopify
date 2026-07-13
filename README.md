@@ -2,14 +2,11 @@
 Shared GitHub Actions workflows for all Fireball Enterprise repos. Theme repos contain thin callers only — no copied CI YAML.
 
 ## Versioning
-Tags follow Fireball versioning: NO `v` prefix, `major.minor.patch` (e.g. `1.0.0`). Every release is dual-tagged: the exact version (`1.0.0`) plus a floating major tag (`1`) that is force-moved to the latest `1.x.x` release. Callers reference `@1` to pick up non-breaking updates automatically; pin an exact tag (`@1.0.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag (`2`).
+Tags use the standard `v` prefix: `vmajor.minor.patch` (e.g. `v1.1.0`). Every release is dual-tagged: the exact version (`v1.1.0`) plus a floating major tag (`v1`) that is force-moved to the latest `v1.x.x` release. Callers reference `@v1` to pick up non-breaking updates automatically; pin an exact tag (`@v1.1.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag (`v2`).
 
-Cutting a release:
+Note: theme repo Releases (cut by `release.yml`) keep Fireball versioning with no `v` prefix (e.g. `1.4.0`) — the prefix applies only to this repo's tags.
 
-```bash
-git tag 1.x.y && git tag -f 1
-git push origin 1.x.y && git push -f origin 1
-```
+Cutting a release: bump `VERSION` (e.g. `1.1.0`) in the PR that changes workflow logic. When it merges to `main`, `publish_release.yml` tags `v1.1.0`, force-moves `v1`, and publishes the GitHub Release. Re-running is safe — it exits early if the tag already exists.
 
 ## Workflows
 | Workflow | Purpose | Secrets |
@@ -18,6 +15,8 @@ git push origin 1.x.y && git push -f origin 1
 | `deploy.yml` | Bump VERSION build (dev) and deploy theme to dev/prd | yes — see below |
 | `release.yml` | Finalize VERSION, promote development → main, deploy prd, publish GitHub Release | yes — see below |
 | `tests.yml` | actionlint, pylint, ruff, theme-check, yamllint | none |
+
+`publish_release.yml` is not reusable — it releases this repo itself (see Versioning above).
 
 ## Caller Requirements (deploy/release)
 - **Secrets** (per repo, added manually by Levon): `BOT_PRIVATE_KEY`, `SHOPIFY_CLI_THEME_TOKEN`, `SHOPIFY_FLAG_STORE`, `SHOPIFY_THEME_ID_DEV`, `SHOPIFY_THEME_ID_PRD`
@@ -48,7 +47,7 @@ on:
 
 jobs:
   deploy:
-    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@1
+    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@v1
     with:
       env: ${{ inputs.env || 'dev' }}
     secrets: inherit
@@ -66,7 +65,7 @@ on:
 
 jobs:
   tests:
-    uses: fireballenterprise/workflows/.github/workflows/tests.yml@1
+    uses: fireballenterprise/workflows/.github/workflows/tests.yml@v1
 ```
 
 `.github/workflows/release.yml`:
@@ -83,7 +82,7 @@ jobs:
     # promote pushes main and publish creates the Release
     permissions:
       contents: write
-    uses: fireballenterprise/workflows/.github/workflows/release.yml@1
+    uses: fireballenterprise/workflows/.github/workflows/release.yml@v1
     secrets: inherit
 ```
 
@@ -109,7 +108,7 @@ jobs:
     # the sync job pushes to dawn_vanilla
     permissions:
       contents: write
-    uses: fireballenterprise/workflows/.github/workflows/dawn_sync.yml@1
+    uses: fireballenterprise/workflows/.github/workflows/dawn_sync.yml@v1
     with:
       version: ${{ inputs.version || 'latest' }}
 ```

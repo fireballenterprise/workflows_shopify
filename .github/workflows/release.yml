@@ -31,7 +31,7 @@ jobs:
       # bypasses that protection. fireball-actions-bot is installed org-wide.
       - name: Generate bot token
         id: bot-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -87,7 +87,7 @@ jobs:
       # GITHUB_TOKEN is not — pushing with GITHUB_TOKEN fails with GH013
       - name: Generate bot token
         id: bot-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -112,7 +112,7 @@ jobs:
   # 🚀 Deploy to production
   deploy:
     needs: promote
-    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@1
+    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@v1
     with:
       env: prd
     secrets: inherit
