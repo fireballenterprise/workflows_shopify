@@ -1,0 +1,61 @@
+---
+name: Publish Release
+run-name: "Publish Release"
+
+# Releases THIS repo (not a reusable workflow). Bump VERSION in a PR; when it
+# lands on main this tags vX.Y.Z, force-moves the floating major tag vX, and
+# publishes a GitHub Release. Re-run safe: exits early if the tag already exists.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - VERSION
+  workflow_dispatch:
+
+permissions:
+  contents: write  # push tags and create the Release
+
+jobs:
+  publish_release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read VERSION
+        id: version
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "major=${version%%.*}" >> "$GITHUB_OUTPUT"
+
+      # Tag may exist without a Release (partial prior run), so check the tag,
+      # not the Release. ls-remote avoids fetching full history for local tags.
+      - name: Skip if already released
+        id: guard
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.version.outputs.version }}" > /dev/null; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.version.outputs.version }} already tagged — skipping" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Tag release and move floating major tag
+        if: steps.guard.outputs.released != 'true'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag "v${{ steps.version.outputs.version }}"
+          git tag -f "v${{ steps.version.outputs.major }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+          git push -f origin "v${{ steps.version.outputs.major }}"
+
+      - name: Create GitHub Release
+        if: steps.guard.outputs.released != 'true'
+        run: >-
+          gh release create "v${{ steps.version.outputs.version }}"
+          --target main
+          --title "v${{ steps.version.outputs.version }}"
+          --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
