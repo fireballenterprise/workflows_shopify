@@ -56,7 +56,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          uv run --no-sync invoke version.bump_release
+          uv run --no-sync invoke ver.project_bump_release
           new_version="$(cat VERSION)"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
           git add VERSION "${{ inputs.version_snippet }}"
@@ -112,7 +112,7 @@ jobs:
   # 🚀 Deploy to production
   deploy:
     needs: promote
-    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@v1
+    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@v2
     with:
       env: prd
     secrets: inherit

@@ -58,7 +58,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          uv run --no-sync invoke version.bump_build
+          uv run --no-sync invoke ver.project_bump_build
           new_version="$(cat VERSION)"
           git add VERSION "${{ inputs.version_snippet }}"
           # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
