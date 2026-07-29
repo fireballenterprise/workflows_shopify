@@ -14,7 +14,7 @@ Cutting a release: bump `VERSION` (e.g. `2.0.0`) in the PR that changes workflow
 | `dawn_sync.yml` | Sync caller's `dawn_vanilla` branch with upstream Shopify/dawn (tag or latest) | none |
 | `deploy.yml` | Bump VERSION build (dev) and deploy theme to dev/prd | yes — see below |
 | `release.yml` | Finalize VERSION, promote development → main, deploy prd, publish GitHub Release | yes — see below |
-| `tests.yml` | actionlint, pylint, ruff, theme-check, yamllint | none |
+| `tests.yml` | actionlint, check_agents, pylint, ruff, theme-check, yamllint | none |
 
 `publish_release.yml` is not reusable — it releases this repo itself (see Versioning above).
 
