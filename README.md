@@ -18,6 +18,10 @@ Cutting a release: bump `VERSION` (e.g. `2.0.0`) in the PR that changes workflow
 
 `publish_release.yml` is not reusable — it releases this repo itself (see Versioning above).
 
+`actionlint.yml` is also not reusable — it's a self-test that runs actionlint against this repo's
+own workflow YAML on pull requests to `development`/`main`. `tests.yml`'s jobs assume a caller
+repo (Python/uv, theme files) this repo doesn't have, so it isn't triggered directly here.
+
 ## Caller Requirements (deploy/release)
 - **Secrets** (per repo, added manually by Levon): `BOT_PRIVATE_KEY`, `SHOPIFY_CLI_THEME_TOKEN`, `SHOPIFY_FLAG_STORE`, `SHOPIFY_THEME_ID_DEV`, `SHOPIFY_THEME_ID_PRD`
 - **Variables**: `BOT_APP_ID` (`fireball-actions-bot` is installed org-wide)
