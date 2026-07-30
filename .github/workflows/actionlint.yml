@@ -1,0 +1,26 @@
+---
+name: Actionlint
+run-name: "Actionlint (${{ github.head_ref || github.ref_name }})"
+
+# Self-test — validates this repo's own workflow YAML. Not reusable, not called by other repos.
+
+on:
+  pull_request:
+    branches:
+      - development
+      - main
+
+jobs:
+  action_lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Code
+        uses: actions/checkout@v7
+
+      - name: Download actionlint
+        run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+      - name: Run actionlint
+        run: ./actionlint -color

@@ -14,9 +14,13 @@ Cutting a release: bump `VERSION` (e.g. `2.0.0`) in the PR that changes workflow
 | `dawn_sync.yml` | Sync caller's `dawn_vanilla` branch with upstream Shopify/dawn (tag or latest) | none |
 | `deploy.yml` | Bump VERSION build (dev) and deploy theme to dev/prd | yes — see below |
 | `release.yml` | Finalize VERSION, promote development → main, deploy prd, publish GitHub Release | yes — see below |
-| `tests.yml` | actionlint, check_agents, pylint, ruff, theme-check, yamllint | none |
+| `tests.yml` | actionlint, check_agents, pylint, pytest, ruff, theme-check, yamllint | none |
 
 `publish_release.yml` is not reusable — it releases this repo itself (see Versioning above).
+
+`actionlint.yml` is also not reusable — it's a self-test that runs actionlint against this repo's
+own workflow YAML on pull requests to `development`/`main`. `tests.yml`'s jobs assume a caller
+repo (Python/uv, theme files) this repo doesn't have, so it isn't triggered directly here.
 
 ## Caller Requirements (deploy/release)
 - **Secrets** (per repo, added manually by Levon): `BOT_PRIVATE_KEY`, `SHOPIFY_CLI_THEME_TOKEN`, `SHOPIFY_FLAG_STORE`, `SHOPIFY_THEME_ID_DEV`, `SHOPIFY_THEME_ID_PRD`
