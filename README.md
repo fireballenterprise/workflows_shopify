@@ -104,7 +104,7 @@ on:
         type: string
         default: latest
   schedule:
-    - cron: "0 12 * * 1"  # weekly Monday (template repo only; brand repos run on demand)
+    - cron: "0 12 1 * *"  # monthly, 1st at 12:00 UTC
 
 jobs:
   dawn_sync:
