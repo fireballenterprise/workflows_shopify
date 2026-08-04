@@ -60,6 +60,15 @@ jobs:
           git config user.email "actions@github.com"
           uv run --no-sync invoke ver.project_bump_build
           new_version="$(cat VERSION)"
+          # Self-heal: this file must always exist for git add below to succeed —
+          # recreate it if a prior change (e.g. a production-sync PR) deleted it
+          if [ ! -f "${{ inputs.version_snippet }}" ]; then
+            mkdir -p "$(dirname "${{ inputs.version_snippet }}")"
+            printf '%s\n' \
+              '{%- comment -%}Fireball - Theme version stamp; the version string is auto-updated by the version.bump invoke tasks{%- endcomment -%}' \
+              "<!-- Fireball Dawn Theme v$new_version -->" \
+              > "${{ inputs.version_snippet }}"
+          fi
           git add VERSION "${{ inputs.version_snippet }}"
           # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
           # so without it this push to development would re-run Deploy forever
