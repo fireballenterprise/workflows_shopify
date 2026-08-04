@@ -59,6 +59,15 @@ jobs:
           uv run --no-sync invoke ver.project_bump_release
           new_version="$(cat VERSION)"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
+          # Self-heal: this file must always exist for git add below to succeed —
+          # recreate it if a prior change (e.g. a production-sync PR) deleted it
+          if [ ! -f "${{ inputs.version_snippet }}" ]; then
+            mkdir -p "$(dirname "${{ inputs.version_snippet }}")"
+            printf '%s\n' \
+              '{%- comment -%}Fireball - Theme version stamp; the version string is auto-updated by the version.bump invoke tasks{%- endcomment -%}' \
+              "<!-- Fireball Dawn Theme v$new_version -->" \
+              > "${{ inputs.version_snippet }}"
+          fi
           git add VERSION "${{ inputs.version_snippet }}"
           # Nothing staged means VERSION was already finalized (re-run after a
           # later job failed) — skip the commit so the re-run can proceed
