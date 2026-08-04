@@ -1,5 +1,5 @@
-# Fireball Enterprise Reusable Workflows
-Shared GitHub Actions workflows for all Fireball Enterprise repos. Theme repos contain thin callers only — no copied CI YAML.
+# Fireball Enterprise Shopify Workflows
+Shared GitHub Actions workflows for Fireball Enterprise's Shopify theme repos. Theme repos contain thin callers only — no copied CI YAML.
 
 ## Versioning
 Tags use the standard `v` prefix: `vmajor.minor.patch` (e.g. `v2.0.0`). Every release is dual-tagged: the exact version (`v2.0.0`) plus a floating major tag (`v2`) that is force-moved to the latest `v2.x.x` release. Callers reference `@v2` to pick up non-breaking updates automatically; pin an exact tag (`@v2.0.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag (e.g. `v3`).
@@ -51,7 +51,7 @@ on:
 
 jobs:
   deploy:
-    uses: fireballenterprise/workflows/.github/workflows/deploy.yml@v2
+    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v2
     with:
       env: ${{ inputs.env || 'dev' }}
     secrets: inherit
@@ -69,7 +69,7 @@ on:
 
 jobs:
   tests:
-    uses: fireballenterprise/workflows/.github/workflows/tests.yml@v2
+    uses: fireballenterprise/workflows_shopify/.github/workflows/tests.yml@v2
 ```
 
 `.github/workflows/release.yml`:
@@ -86,7 +86,7 @@ jobs:
     # promote pushes main and publish creates the Release
     permissions:
       contents: write
-    uses: fireballenterprise/workflows/.github/workflows/release.yml@v2
+    uses: fireballenterprise/workflows_shopify/.github/workflows/release.yml@v2
     secrets: inherit
 ```
 
@@ -112,7 +112,7 @@ jobs:
     # the sync job pushes to dawn_vanilla
     permissions:
       contents: write
-    uses: fireballenterprise/workflows/.github/workflows/dawn_sync.yml@v2
+    uses: fireballenterprise/workflows_shopify/.github/workflows/dawn_sync.yml@v2
     with:
       version: ${{ inputs.version || 'latest' }}
 ```
