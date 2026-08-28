@@ -1,12 +1,15 @@
 ---
 name: Release
-run-name: "Release"
+run-name: "Release (${{ inputs.bump }})"
 
 # Reusable workflow — call from a theme repo with `secrets: inherit`.
-# Finalizes VERSION on development, promotes development → main,
-# deploys to production, and publishes a GitHub Release.
-# Release tags have NO v prefix (e.g. 1.0.0), per Fireball versioning:
-# major.minor.patch-build while in development, major.minor.patch on release.
+# Promotes development → main, deploys to production, and publishes a GitHub Release tagged with the
+# current development VERSION. Tags have NO v prefix (e.g. 1.0.0).
+#
+# Versioning (family-wide — see fireball_orchestrator's versioning.instructions.md): the VERSION
+# patch is bumped per merge to development (deploy.yml's build_version job), NOT here. A release
+# just promotes + tags. The `bump` input forces a minor/major milestone on development first
+# (default: none).
 
 on:
   workflow_call:
@@ -16,9 +19,14 @@ on:
         required: false
         type: string
         default: snippets/fireball-version.liquid
+      bump:
+        description: 'Milestone bump on development before promoting (none | patch | minor | major)'
+        required: false
+        type: string
+        default: none
 
 jobs:
-  # 🔢 Finalize VERSION (drop the build suffix)
+  # 🔢 Resolve the release version (optional milestone bump; default = promote development as-is)
   version:
     runs-on: ubuntu-latest
     concurrency: version-bump-development  # serialize VERSION changes against deploy.yml's bumps
@@ -51,12 +59,14 @@ jobs:
       - name: Install Dependencies
         run: uv sync
 
-      - name: Finalize VERSION for release
+      - name: Resolve version
         id: bump
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          uv run --no-sync invoke ver.project_bump_release
+          if [ "${{ inputs.bump }}" != "none" ]; then
+            uv run --no-sync invoke "ver.project_bump_${{ inputs.bump }}"
+          fi
           new_version="$(cat VERSION)"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
           # Self-heal: this file must always exist for git add below to succeed —
@@ -69,14 +79,14 @@ jobs:
               > "${{ inputs.version_snippet }}"
           fi
           git add VERSION "${{ inputs.version_snippet }}"
-          # Nothing staged means VERSION was already finalized (re-run after a
-          # later job failed) — skip the commit so the re-run can proceed
+          # Nothing staged means no bump was requested (or it was a re-run) —
+          # skip the commit so the re-run can proceed
           if git diff --cached --quiet; then
-            echo "VERSION already finalized at $new_version — nothing to commit"
+            echo "VERSION unchanged at $new_version — promoting as-is"
           else
             # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
             # so without it this push to development would trigger a dev Deploy
-            git commit -m "chore: release $new_version [skip ci]"
+            git commit -m "chore: bump VERSION to $new_version [skip ci]"
             git push origin HEAD:development
           fi
 
@@ -121,7 +131,7 @@ jobs:
   # 🚀 Deploy to production
   deploy:
     needs: promote
-    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v2
+    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v3
     with:
       env: prd
     secrets: inherit
