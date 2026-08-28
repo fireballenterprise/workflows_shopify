@@ -22,11 +22,11 @@ on:
         default: snippets/fireball-version.liquid
 
 jobs:
-  # 🔢 Bump VERSION build number (dev deploys only — release.yml owns VERSION for prd)
+  # 🔢 Bump the VERSION patch (dev deploys only — every merge to development advances the patch)
   build_version:
     if: ${{ (inputs.env || 'dev') == 'dev' }}
     runs-on: ubuntu-latest
-    concurrency: version-bump-development  # serialize VERSION bumps — no racing build numbers
+    concurrency: version-bump-development  # serialize VERSION bumps — no racing patch numbers
     permissions:
       contents: read  # pushes go through the bot token, not GITHUB_TOKEN
     steps:
@@ -58,7 +58,10 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          uv run --no-sync invoke ver.project_bump_build
+          # Family-wide scheme (see fireball_orchestrator's versioning.instructions.md): every merge
+          # to development bumps the patch (X.Y.Z -> X.Y.(Z+1)), no build suffix. release.yml then
+          # just promotes + tags this version.
+          uv run --no-sync invoke ver.project_bump_patch
           new_version="$(cat VERSION)"
           # Self-heal: this file must always exist for git add below to succeed —
           # recreate it if a prior change (e.g. a production-sync PR) deleted it
@@ -72,7 +75,7 @@ jobs:
           git add VERSION "${{ inputs.version_snippet }}"
           # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
           # so without it this push to development would re-run Deploy forever
-          git commit -m "chore: bump VERSION to $new_version [skip ci]"
+          git commit -m "chore: bump VERSION to $new_version (dev merge) [skip ci]"
           git push origin HEAD:development
 
   # 🚀 Deploy job
