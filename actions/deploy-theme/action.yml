@@ -1,0 +1,33 @@
+---
+name: Deploy Shopify theme
+description: >-
+  Push the checked-out theme to the store's dev or prd theme via the Shopify CLI. The caller must
+  provide SHOPIFY_FLAG_STORE, SHOPIFY_CLI_THEME_TOKEN and SHOPIFY_THEME_ID_DEV / SHOPIFY_THEME_ID_PRD
+  in the job environment (env vars set on a `uses:` step do not reach a composite action).
+
+inputs:
+  env:
+    description: Target environment — dev | prd
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Shopify CLI
+      shell: bash
+      run: npm install -g @shopify/cli @shopify/theme
+
+    - name: Push theme
+      shell: bash
+      env:
+        DEPLOY_ENV: ${{ inputs.env }}
+      run: |
+        set -euo pipefail
+        case "$DEPLOY_ENV" in
+          dev) theme_id="$SHOPIFY_THEME_ID_DEV"; live_flag="" ;;
+          prd) theme_id="$SHOPIFY_THEME_ID_PRD"; live_flag="--allow-live" ;;
+          *) echo "::error::env must be dev | prd (got '$DEPLOY_ENV')" && exit 1 ;;
+        esac
+        echo "Pushing $DEPLOY_ENV theme $theme_id to $SHOPIFY_FLAG_STORE"
+        # SHOPIFY_FLAG_STORE + SHOPIFY_CLI_THEME_TOKEN are read from the env by the CLI.
+        shopify theme push --force --theme="$theme_id" --store="$SHOPIFY_FLAG_STORE" $live_flag
