@@ -4,7 +4,7 @@ Shared GitHub Actions workflows for Fireball Enterprise's Shopify theme repos. T
 ## Versioning
 Tags use the standard `v` prefix: `vmajor.minor.patch` (e.g. `v4.0.0`). Every release is dual-tagged: the exact version (`v4.0.0`) plus a floating major tag (`v4`) that is force-moved to the latest `v4.x.x` release. Callers reference `@v4` to pick up non-breaking updates automatically; pin an exact tag (`@v4.0.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag.
 
-**`v4` (2026-09-03) — theme repos are pure content**: caller repos no longer carry any Python tooling (`tasks/`, `modules/`, `pyproject.toml`). The bump + deploy + theme-check logic moved into composite actions in this repo (`actions/{bump-version,deploy-theme,theme-check}`), and `tests.yml` now runs only theme-check + yamllint + actionlint (no `uv`, no `invoke`). Theme `VERSION` files stay plain `X.Y.Z`.
+**`v4` (2026-09-03) — theme repos are pure content**: caller repos no longer carry any Python tooling (`tasks/`, `modules/`, `pyproject.toml`). The bump + deploy + theme-check logic moved into composite actions in this repo (`actions/{bump_version,deploy_theme,theme_check}`), and `tests.yml` now runs only theme-check + yamllint + actionlint (no `uv`, no `invoke`). Theme `VERSION` files stay plain `X.Y.Z`.
 
 **`v3` (2026-08-28) — the family versioning scheme**: `deploy.yml`'s build-version job bumps the **patch** on every merge to `development`; `release.yml` just promotes + tags whatever `development` is at, unless its `bump` input (`none` | `patch` | `minor` | `major`) forces a milestone.
 
@@ -30,9 +30,9 @@ Referenced fully-qualified (`uses: fireballenterprise/workflows_shopify/actions/
 
 | action | inputs | does |
 |---|---|---|
-| `bump-version` | `part` (patch/minor/major) | bump `VERSION`, output `version` (no commit) |
-| `deploy-theme` | `env` (dev/prd) | `npm i -g @shopify/cli` + `shopify theme push` (reads `SHOPIFY_*` from the job env) |
-| `theme-check` | — | `npm i -g @shopify/cli` + `shopify theme check` |
+| `bump_version` | `part` (patch/minor/major) | bump `VERSION`, output `version` (no commit) |
+| `deploy_theme` | `env` (dev/prd) | `npm i -g @shopify/cli` + `shopify theme push` (reads `SHOPIFY_*` from the job env) |
+| `theme_check` | — | `npm i -g @shopify/cli` + `shopify theme check` |
 
 ## Caller Requirements (deploy/release)
 - **Secrets** (per repo, added manually by Levon): `BOT_PRIVATE_KEY`, `SHOPIFY_CLI_THEME_TOKEN`, `SHOPIFY_FLAG_STORE`, `SHOPIFY_THEME_ID_DEV`, `SHOPIFY_THEME_ID_PRD`

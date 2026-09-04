@@ -53,7 +53,7 @@ jobs:
 
       - name: Milestone bump
         if: ${{ inputs.bump != 'none' }}
-        uses: fireballenterprise/workflows_shopify/actions/bump-version@v4
+        uses: fireballenterprise/workflows_shopify/actions/bump_version@v4
         with:
           part: ${{ inputs.bump }}
 
