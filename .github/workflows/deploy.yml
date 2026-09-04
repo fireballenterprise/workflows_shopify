@@ -48,7 +48,7 @@ jobs:
 
       - name: Bump VERSION patch
         id: bump
-        uses: fireballenterprise/workflows_shopify/actions/bump-version@v4
+        uses: fireballenterprise/workflows_shopify/actions/bump_version@v4
         with:
           part: patch
 
@@ -99,6 +99,6 @@ jobs:
         run: echo "### Deploying $(cat VERSION) to ${{ env.DEPLOY_ENV }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy theme
-        uses: fireballenterprise/workflows_shopify/actions/deploy-theme@v4
+        uses: fireballenterprise/workflows_shopify/actions/deploy_theme@v4
         with:
           env: ${{ env.DEPLOY_ENV }}

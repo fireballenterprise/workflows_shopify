@@ -18,7 +18,7 @@ jobs:
       - name: Check Out Code
         uses: actions/checkout@v7
       - name: theme-check
-        uses: fireballenterprise/workflows_shopify/actions/theme-check@v4
+        uses: fireballenterprise/workflows_shopify/actions/theme_check@v4
 
   yaml_lint:
     runs-on: ubuntu-latest
