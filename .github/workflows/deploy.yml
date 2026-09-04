@@ -46,29 +46,23 @@ jobs:
           # extraheader overrides any token embedded in a push URL
           token: ${{ steps.bot-token.outputs.token }}
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v8.3.2
+      - name: Bump VERSION patch
+        id: bump
+        uses: fireballenterprise/workflows_shopify/actions/bump-version@v4
         with:
-          enable-cache: true
+          part: patch
 
-      - name: Install Dependencies
-        run: uv sync
-
-      - name: Bump VERSION
+      - name: Commit VERSION bump
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          # Family-wide scheme (see fireball_orchestrator's versioning.instructions.md): every merge
-          # to development bumps the patch (X.Y.Z -> X.Y.(Z+1)), no build suffix. release.yml then
-          # just promotes + tags this version.
-          uv run --no-sync invoke ver.project_bump_patch
-          new_version="$(cat VERSION)"
+          new_version="${{ steps.bump.outputs.version }}"
           # Self-heal: this file must always exist for git add below to succeed —
           # recreate it if a prior change (e.g. a production-sync PR) deleted it
           if [ ! -f "${{ inputs.version_snippet }}" ]; then
             mkdir -p "$(dirname "${{ inputs.version_snippet }}")"
             printf '%s\n' \
-              '{%- comment -%}Fireball - Theme version stamp; the version string is auto-updated by the version.bump invoke tasks{%- endcomment -%}' \
+              '{%- comment -%}Fireball - Theme version stamp; auto-updated by the deploy/release workflows{%- endcomment -%}' \
               "<!-- Fireball Dawn Theme v$new_version -->" \
               > "${{ inputs.version_snippet }}"
           fi
@@ -87,6 +81,11 @@ jobs:
       contents: read
     env:
       DEPLOY_ENV: ${{ inputs.env || 'dev' }}
+      # env on a `uses:` step does not reach a composite action — set the Shopify vars at job level
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}
+      SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_FLAG_STORE }}
+      SHOPIFY_THEME_ID_DEV: ${{ secrets.SHOPIFY_THEME_ID_DEV }}
+      SHOPIFY_THEME_ID_PRD: ${{ secrets.SHOPIFY_THEME_ID_PRD }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -99,22 +98,7 @@ jobs:
       - name: Report version
         run: echo "### Deploying $(cat VERSION) to ${{ env.DEPLOY_ENV }}" >> "$GITHUB_STEP_SUMMARY"
 
-      - run: npm install -g @shopify/cli @shopify/theme
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v8.3.2
+      - name: Deploy theme
+        uses: fireballenterprise/workflows_shopify/actions/deploy-theme@v4
         with:
-          enable-cache: true
-
-      - name: Install Dependencies
-        run: uv sync
-
-      - name: Deploy to ${{ env.DEPLOY_ENV }} Theme
-        run: |
-          uv run --no-sync invoke debug.env
-          uv run --no-sync invoke shopify.deploy --env=${{ env.DEPLOY_ENV }}
-        env:
-          SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}
-          SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_FLAG_STORE }}
-          SHOPIFY_THEME_ID_DEV: ${{ secrets.SHOPIFY_THEME_ID_DEV }}
-          SHOPIFY_THEME_ID_PRD: ${{ secrets.SHOPIFY_THEME_ID_PRD }}
+          env: ${{ env.DEPLOY_ENV }}
