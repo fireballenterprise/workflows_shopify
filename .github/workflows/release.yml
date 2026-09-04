@@ -51,22 +51,17 @@ jobs:
           # extraheader overrides any token embedded in a push URL
           token: ${{ steps.bot-token.outputs.token }}
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v8.3.2
+      - name: Milestone bump
+        if: ${{ inputs.bump != 'none' }}
+        uses: fireballenterprise/workflows_shopify/actions/bump_version@v4
         with:
-          enable-cache: true
-
-      - name: Install Dependencies
-        run: uv sync
+          part: ${{ inputs.bump }}
 
       - name: Resolve version
         id: bump
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          if [ "${{ inputs.bump }}" != "none" ]; then
-            uv run --no-sync invoke "ver.project_bump_${{ inputs.bump }}"
-          fi
           new_version="$(cat VERSION)"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
           # Self-heal: this file must always exist for git add below to succeed —
@@ -74,7 +69,7 @@ jobs:
           if [ ! -f "${{ inputs.version_snippet }}" ]; then
             mkdir -p "$(dirname "${{ inputs.version_snippet }}")"
             printf '%s\n' \
-              '{%- comment -%}Fireball - Theme version stamp; the version string is auto-updated by the version.bump invoke tasks{%- endcomment -%}' \
+              '{%- comment -%}Fireball - Theme version stamp; the version string is auto-updated by the deploy/release workflows{%- endcomment -%}' \
               "<!-- Fireball Dawn Theme v$new_version -->" \
               > "${{ inputs.version_snippet }}"
           fi
@@ -131,7 +126,7 @@ jobs:
   # 🚀 Deploy to production
   deploy:
     needs: promote
-    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v3
+    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v4
     with:
       env: prd
     secrets: inherit

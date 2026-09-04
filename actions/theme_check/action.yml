@@ -1,0 +1,14 @@
+---
+name: Shopify theme-check
+description: Run Shopify's Liquid / theme linter (`shopify theme check`) against the checkout.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Shopify CLI
+      shell: bash
+      run: npm install -g @shopify/cli @shopify/theme
+
+    - name: Run theme-check
+      shell: bash
+      run: shopify theme check
