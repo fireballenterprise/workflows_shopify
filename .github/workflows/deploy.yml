@@ -48,28 +48,30 @@ jobs:
 
       - name: Bump VERSION patch
         id: bump
-        uses: fireballenterprise/workflows_shopify/actions/bump_version@v4
+        uses: fireballenterprise/workflows_common/actions/bump_version@v1
         with:
           part: patch
 
       - name: Commit VERSION bump
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
+          VERSION_SNIPPET: ${{ inputs.version_snippet }}
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          new_version="${{ steps.bump.outputs.version }}"
+          git config user.name "Levon Becker"
+          git config user.email "LevonBecker@users.noreply.github.com"
           # Self-heal: this file must always exist for git add below to succeed —
           # recreate it if a prior change (e.g. a production-sync PR) deleted it
-          if [ ! -f "${{ inputs.version_snippet }}" ]; then
-            mkdir -p "$(dirname "${{ inputs.version_snippet }}")"
+          if [ ! -f "$VERSION_SNIPPET" ]; then
+            mkdir -p "$(dirname "$VERSION_SNIPPET")"
             printf '%s\n' \
               '{%- comment -%}Fireball - Theme version stamp; auto-updated by the deploy/release workflows{%- endcomment -%}' \
-              "<!-- Fireball Dawn Theme v$new_version -->" \
-              > "${{ inputs.version_snippet }}"
+              "<!-- Fireball Dawn Theme v$NEW_VERSION -->" \
+              > "$VERSION_SNIPPET"
           fi
-          git add VERSION "${{ inputs.version_snippet }}"
+          git add VERSION "$VERSION_SNIPPET"
           # [skip ci]: bot-token pushes DO trigger workflows (unlike GITHUB_TOKEN),
           # so without it this push to development would re-run Deploy forever
-          git commit -m "chore: bump VERSION to $new_version (dev merge) [skip ci]"
+          git commit -m "chore: bump VERSION to $NEW_VERSION (dev merge) [skip ci]"
           git push origin HEAD:development
 
   # 🚀 Deploy job
@@ -99,6 +101,6 @@ jobs:
         run: echo "### Deploying $(cat VERSION) to ${{ env.DEPLOY_ENV }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy theme
-        uses: fireballenterprise/workflows_shopify/actions/deploy_theme@v4
+        uses: fireballenterprise/workflows_shopify/actions/deploy_theme@v5
         with:
           env: ${{ env.DEPLOY_ENV }}

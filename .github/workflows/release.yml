@@ -9,7 +9,7 @@ run-name: "Release (${{ inputs.bump }})"
 # Versioning (family-wide — see fireball_orchestrator's versioning.instructions.md): the VERSION
 # patch is bumped per merge to development (deploy.yml's build_version job), NOT here. A release
 # just promotes + tags. The `bump` input forces a minor/major milestone on development first
-# (default: none).
+# (default: none). Promote + GitHub Release are workflows_common reusables.
 
 on:
   workflow_call:
@@ -53,27 +53,29 @@ jobs:
 
       - name: Milestone bump
         if: ${{ inputs.bump != 'none' }}
-        uses: fireballenterprise/workflows_shopify/actions/bump_version@v4
+        uses: fireballenterprise/workflows_common/actions/bump_version@v1
         with:
           part: ${{ inputs.bump }}
 
       - name: Resolve version
         id: bump
+        env:
+          VERSION_SNIPPET: ${{ inputs.version_snippet }}
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "Levon Becker"
+          git config user.email "LevonBecker@users.noreply.github.com"
           new_version="$(cat VERSION)"
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
           # Self-heal: this file must always exist for git add below to succeed —
           # recreate it if a prior change (e.g. a production-sync PR) deleted it
-          if [ ! -f "${{ inputs.version_snippet }}" ]; then
-            mkdir -p "$(dirname "${{ inputs.version_snippet }}")"
+          if [ ! -f "$VERSION_SNIPPET" ]; then
+            mkdir -p "$(dirname "$VERSION_SNIPPET")"
             printf '%s\n' \
               '{%- comment -%}Fireball - Theme version stamp; the version string is auto-updated by the deploy/release workflows{%- endcomment -%}' \
               "<!-- Fireball Dawn Theme v$new_version -->" \
-              > "${{ inputs.version_snippet }}"
+              > "$VERSION_SNIPPET"
           fi
-          git add VERSION "${{ inputs.version_snippet }}"
+          git add VERSION "$VERSION_SNIPPET"
           # Nothing staged means no bump was requested (or it was a re-run) —
           # skip the commit so the re-run can proceed
           if git diff --cached --quiet; then
@@ -85,48 +87,19 @@ jobs:
             git push origin HEAD:development
           fi
 
-      # runs can't be renamed after the fact (no such API endpoint, and run-name is
-      # fixed at trigger time — before the bump); surface the version in the summary
       - name: Report version
         run: echo "### Releasing ${{ steps.bump.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
 
   # 🔀 Promote development → main (Production)
   promote:
     needs: version
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read  # pushes go through the bot token, not GITHUB_TOKEN
-    steps:
-      # main requires PRs (Dev & Prd ruleset); the bot app is a bypass actor,
-      # GITHUB_TOKEN is not — pushing with GITHUB_TOKEN fails with GH013
-      - name: Generate bot token
-        id: bot-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ vars.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-
-      - uses: actions/checkout@v7
-        with:
-          ref: development  # Checkout development branch
-          fetch-depth: 0    # Full history so main/development share a discoverable common ancestor
-          token: ${{ steps.bot-token.outputs.token }}
-
-      # Merge development into main
-      - name: Merge development to main
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git fetch origin main
-          git checkout main
-          # -X theirs: development is the source of truth; on conflict its side wins
-          git merge origin/development --no-ff -X theirs -m "chore: release to production"
-          git push origin main
+    uses: fireballenterprise/workflows_common/.github/workflows/promote.yml@v1
+    secrets: inherit
 
   # 🚀 Deploy to production
   deploy:
     needs: promote
-    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v4
+    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v5
     with:
       env: prd
     secrets: inherit
@@ -134,19 +107,10 @@ jobs:
   # 🏷️ Create GitHub Release
   publish_release:
     needs: [version, deploy]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write  # repo default GITHUB_TOKEN permission is read-only; creating a release needs write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: main  # tag the freshly promoted merge commit, not the dispatch ref
-
-      - name: Create GitHub Release
-        run: >-
-          gh release create "${{ needs.version.outputs.version }}"
-          --target main
-          --title "${{ needs.version.outputs.version }}"
-          --generate-notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: fireballenterprise/workflows_common/.github/workflows/github_release.yml@v1
+    with:
+      version: ${{ needs.version.outputs.version }}
+      ref: main
+      tag: false  # `gh release create` creates the X.Y.Z tag on main as a side effect
+      v_prefix: false
+    secrets: inherit

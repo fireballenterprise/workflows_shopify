@@ -43,8 +43,8 @@ jobs:
       - name: Tag release and move floating major tag
         if: steps.guard.outputs.released != 'true'
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "Levon Becker"
+          git config user.email "LevonBecker@users.noreply.github.com"
           git tag "v${{ steps.version.outputs.version }}"
           git tag -f "v${{ steps.version.outputs.major }}"
           git push origin "v${{ steps.version.outputs.version }}"

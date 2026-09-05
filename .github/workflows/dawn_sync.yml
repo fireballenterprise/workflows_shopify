@@ -50,8 +50,8 @@ jobs:
 
       - name: Merge upstream Shopify/dawn ${{ steps.resolve.outputs.version }} into dawn_vanilla
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "Levon Becker"
+          git config user.email "LevonBecker@users.noreply.github.com"
           git remote add upstream https://github.com/Shopify/dawn.git
           # Fetch only the requested tag — fetching --tags pulls every upstream Dawn version
           # tag, which can collide with our own same-named release tags (e.g. 1.0.0 exists

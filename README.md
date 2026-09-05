@@ -2,15 +2,17 @@
 Shared GitHub Actions workflows for Fireball Enterprise's Shopify theme repos. Theme repos contain thin callers only — no copied CI YAML.
 
 ## Versioning
-Tags use the standard `v` prefix: `vmajor.minor.patch` (e.g. `v4.0.0`). Every release is dual-tagged: the exact version (`v4.0.0`) plus a floating major tag (`v4`) that is force-moved to the latest `v4.x.x` release. Callers reference `@v4` to pick up non-breaking updates automatically; pin an exact tag (`@v4.0.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag.
+Tags use the standard `v` prefix: `vmajor.minor.patch` (e.g. `v5.0.0`). Every release is dual-tagged: the exact version (`v5.0.0`) plus a floating major tag (`v5`) that is force-moved to the latest `v5.x.x` release. Callers reference `@v5` to pick up non-breaking updates automatically; pin an exact tag (`@v5.0.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag.
 
-**`v4` (2026-09-03) — theme repos are pure content**: caller repos no longer carry any Python tooling (`tasks/`, `modules/`, `pyproject.toml`). The bump + deploy + theme-check logic moved into composite actions in this repo (`actions/{bump_version,deploy_theme,theme_check}`), and `tests.yml` now runs only theme-check + yamllint + actionlint (no `uv`, no `invoke`). Theme `VERSION` files stay plain `X.Y.Z`.
+**`v5` (2026-09-05) — consume `workflows_common`**: the `bump_version` composite action moved to [`workflows_common`](https://github.com/fireballenterprise/workflows_common) (`actions/bump_version@v1`), and `release.yml`'s promote + GitHub-Release jobs are now `workflows_common` reusables (`promote.yml`, `github_release.yml`). Automated commits are authored `Levon Becker <LevonBecker@users.noreply.github.com>`. Behaviour is unchanged — callers just re-point `@v4 → @v5`.
+
+**`v4` (2026-09-03) — theme repos are pure content**: caller repos no longer carry any Python tooling (`tasks/`, `modules/`, `pyproject.toml`). The bump + deploy + theme-check logic moved into composite actions in this repo, and `tests.yml` now runs only theme-check + yamllint + actionlint (no `uv`, no `invoke`). Theme `VERSION` files stay plain `X.Y.Z`.
 
 **`v3` (2026-08-28) — the family versioning scheme**: `deploy.yml`'s build-version job bumps the **patch** on every merge to `development`; `release.yml` just promotes + tags whatever `development` is at, unless its `bump` input (`none` | `patch` | `minor` | `major`) forces a milestone.
 
 Note: theme repo Releases (cut by `release.yml`) keep Fireball versioning with no `v` prefix (e.g. `1.5.1`) — the prefix applies only to this repo's tags.
 
-Cutting a release *of this repo*: bump `VERSION` (e.g. `4.1.0`) in the PR that changes workflow logic. When it merges to `main`, `publish_release.yml` tags `v4.1.0`, force-moves `v4`, and publishes the GitHub Release. Re-running is safe — it exits early if the tag already exists.
+Cutting a release *of this repo*: bump `VERSION` (e.g. `5.1.0`) in the PR that changes workflow logic. When it merges to `main`, `publish_release.yml` tags `v5.1.0`, force-moves `v5`, and publishes the GitHub Release. Re-running is safe — it exits early if the tag already exists.
 
 ## Workflows
 | Workflow | Purpose | Secrets |
@@ -26,7 +28,7 @@ Cutting a release *of this repo*: bump `VERSION` (e.g. `4.1.0`) in the PR that c
 own workflow YAML on pull requests to `development`/`main`.
 
 ## Composite actions (`actions/`)
-Referenced fully-qualified (`uses: fireballenterprise/workflows_shopify/actions/<name>@v4`):
+Referenced fully-qualified (`uses: fireballenterprise/workflows_shopify/actions/<name>@v5`):
 
 | action | inputs | does |
 |---|---|---|
@@ -64,7 +66,7 @@ on:
 
 jobs:
   deploy:
-    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v4
+    uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v5
     with:
       env: ${{ inputs.env || 'dev' }}
     secrets: inherit
@@ -82,7 +84,7 @@ on:
 
 jobs:
   tests:
-    uses: fireballenterprise/workflows_shopify/.github/workflows/tests.yml@v4
+    uses: fireballenterprise/workflows_shopify/.github/workflows/tests.yml@v5
 ```
 
 `.github/workflows/release.yml`:
@@ -105,7 +107,7 @@ jobs:
     # promote pushes main and publish creates the Release
     permissions:
       contents: write
-    uses: fireballenterprise/workflows_shopify/.github/workflows/release.yml@v4
+    uses: fireballenterprise/workflows_shopify/.github/workflows/release.yml@v5
     with:
       bump: ${{ inputs.bump }}
     secrets: inherit
@@ -133,7 +135,7 @@ jobs:
     # the sync job pushes to dawn_vanilla
     permissions:
       contents: write
-    uses: fireballenterprise/workflows_shopify/.github/workflows/dawn_sync.yml@v4
+    uses: fireballenterprise/workflows_shopify/.github/workflows/dawn_sync.yml@v5
     with:
       version: ${{ inputs.version || 'latest' }}
 ```
