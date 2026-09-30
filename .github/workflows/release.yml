@@ -24,6 +24,16 @@ on:
         required: false
         type: string
         default: none
+      overwrite_live_edits:
+        description: 'Push over GUI edits on the live theme (default: the deploy job fails listing them)'
+        required: false
+        type: boolean
+        default: false
+      drift_ignore:
+        description: 'Comma-separated globs of theme files Shopify/apps rewrite on their own (drift guard)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   # 🔢 Resolve the release version (optional milestone bump; default = promote development as-is)
@@ -102,6 +112,8 @@ jobs:
     uses: fireballenterprise/workflows_shopify/.github/workflows/deploy.yml@v5
     with:
       env: prd
+      overwrite_live_edits: ${{ inputs.overwrite_live_edits }}
+      drift_ignore: ${{ inputs.drift_ignore }}
     secrets: inherit
 
   # 🏷️ Create GitHub Release
