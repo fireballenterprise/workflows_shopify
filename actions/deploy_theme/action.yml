@@ -4,11 +4,25 @@ description: >-
   Push the checked-out theme to the store's dev or prd theme via the Shopify CLI. The caller must
   provide SHOPIFY_FLAG_STORE, SHOPIFY_CLI_THEME_TOKEN and SHOPIFY_THEME_ID_DEV / SHOPIFY_THEME_ID_PRD
   in the job environment (env vars set on a `uses:` step do not reach a composite action).
+  A prd (live) push is guarded: the live theme is pulled and diffed against the previously
+  deployed release tag; GUI edits made in the Shopify admin that git doesn't have fail the job
+  (unless overwrite_live_edits), the pulled live theme is uploaded as a backup artifact, and the
+  push adds --nodelete unless every remote-only file was deleted in git on purpose.
 
 inputs:
   env:
     description: Target environment — dev | prd
     required: true
+  overwrite_live_edits:
+    description: prd only — push even though the live theme has GUI edits git doesn't have
+    required: false
+    default: 'false'
+  drift_ignore:
+    description: >-
+      Comma/newline-separated globs of theme files Shopify or an app rewrites on its own (not GUI
+      edits). Keep in sync with fireball_orchestrator's properties.yml shopify.drift_ignore.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -17,17 +31,92 @@ runs:
       shell: bash
       run: npm install -g @shopify/cli @shopify/theme
 
-    - name: Push theme
+    - name: Resolve target theme
+      id: target
       shell: bash
       env:
         DEPLOY_ENV: ${{ inputs.env }}
       run: |
         set -euo pipefail
         case "$DEPLOY_ENV" in
-          dev) theme_id="$SHOPIFY_THEME_ID_DEV"; live_flag="" ;;
-          prd) theme_id="$SHOPIFY_THEME_ID_PRD"; live_flag="--allow-live" ;;
+          dev) echo "theme_id=$SHOPIFY_THEME_ID_DEV" >> "$GITHUB_OUTPUT" ;;
+          prd) echo "theme_id=$SHOPIFY_THEME_ID_PRD" >> "$GITHUB_OUTPUT" ;;
           *) echo "::error::env must be dev | prd (got '$DEPLOY_ENV')" && exit 1 ;;
         esac
-        echo "Pushing $DEPLOY_ENV theme $theme_id to $SHOPIFY_FLAG_STORE"
+
+    # The release tag (plain X.Y.Z — the v* tags are upstream Dawn's) nearest HEAD is what the last
+    # prd deploy pushed: release.yml tags only after its deploy job succeeds.
+    - name: Pull live theme + resolve last release
+      id: live
+      if: inputs.env == 'prd'
+      shell: bash
+      env:
+        THEME_ID: ${{ steps.target.outputs.theme_id }}
+      run: |
+        set -euo pipefail
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          git fetch --quiet --unshallow origin
+        fi
+        git fetch --quiet --force --tags origin
+        baseline="$(git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)"
+        echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+        live_dir="$RUNNER_TEMP/live_theme"
+        base_dir="$RUNNER_TEMP/release_theme"
+        mkdir -p "$live_dir" "$base_dir"
+        shopify theme pull --theme="$THEME_ID" --store="$SHOPIFY_FLAG_STORE" --path="$live_dir"
+        if [ -n "$baseline" ]; then
+          git archive "$baseline" | tar -x -C "$base_dir"
+        fi
+        echo "live_dir=$live_dir" >> "$GITHUB_OUTPUT"
+        echo "base_dir=$base_dir" >> "$GITHUB_OUTPUT"
+
+    # Backup before any live push — download it from the run to roll back
+    # (`shopify theme push --theme <prd id> --path <artifact dir> --nodelete --allow-live [--only f]`).
+    - name: Back up live theme
+      if: inputs.env == 'prd'
+      uses: actions/upload-artifact@v7
+      with:
+        name: live-theme-backup-${{ steps.target.outputs.theme_id }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ steps.live.outputs.live_dir }}
+        retention-days: 90
+        if-no-files-found: error
+
+    - name: Live-theme drift guard
+      id: guard
+      if: inputs.env == 'prd'
+      shell: bash
+      env:
+        BASELINE: ${{ steps.live.outputs.baseline }}
+        LIVE_DIR: ${{ steps.live.outputs.live_dir }}
+        BASE_DIR: ${{ steps.live.outputs.base_dir }}
+        OVERWRITE: ${{ inputs.overwrite_live_edits }}
+        DRIFT_IGNORE: ${{ inputs.drift_ignore }}
+        GUARD: ${{ github.action_path }}/drift_guard.py
+      run: |
+        set -euo pipefail
+        overwrite=()
+        if [ "$OVERWRITE" = "true" ]; then overwrite=(--overwrite-live-edits); fi
+        if [ -z "$BASELINE" ] && [ "$OVERWRITE" != "true" ]; then
+          echo "::error::No X.Y.Z release tag reachable from HEAD — can't tell what was last deployed." \
+            "Re-run with overwrite_live_edits: true to push anyway."
+          exit 1
+        fi
+        python3 "$GUARD" --live "$LIVE_DIR" --base "$BASE_DIR" --head . --baseline "$BASELINE" \
+          --ignore "$DRIFT_IGNORE" --output "$GITHUB_OUTPUT" "${overwrite[@]}"
+
+    - name: Push theme
+      shell: bash
+      env:
+        DEPLOY_ENV: ${{ inputs.env }}
+        THEME_ID: ${{ steps.target.outputs.theme_id }}
+        GUARD_FLAGS: ${{ steps.guard.outputs.flags }}
+      run: |
+        set -euo pipefail
+        flags=()
+        if [ "$DEPLOY_ENV" = "prd" ]; then
+          flags+=(--allow-live)
+          if [ -n "$GUARD_FLAGS" ]; then flags+=("$GUARD_FLAGS"); fi
+        fi
+        echo "Pushing $DEPLOY_ENV theme $THEME_ID to $SHOPIFY_FLAG_STORE ${flags[*]}"
         # SHOPIFY_FLAG_STORE + SHOPIFY_CLI_THEME_TOKEN are read from the env by the CLI.
-        shopify theme push --force --theme="$theme_id" --store="$SHOPIFY_FLAG_STORE" $live_flag
+        shopify theme push --force --theme="$THEME_ID" --store="$SHOPIFY_FLAG_STORE" "${flags[@]}"
