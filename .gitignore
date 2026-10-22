@@ -1,0 +1,15 @@
+
+# Build output and release artifacts: never committed (owner, 2026-10-22)
+build/
+DerivedData/
+*.xcarchive/
+*.xcresult/
+*.zip
+*.pkg
+*.dmg
+*.ipa
+*.apk
+*.aab
+*.msix
+*.AppImage
+*.deb
