@@ -20,6 +20,16 @@ on:
         required: false
         type: string
         default: snippets/fireball-version.liquid
+      overwrite_live_edits:
+        description: 'prd only: push even though the live theme has GUI edits git does not have'
+        required: false
+        type: boolean
+        default: false
+      drift_ignore:
+        description: 'Comma-separated globs of theme files Shopify/apps rewrite on their own (drift guard)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   # 🔢 Bump the VERSION patch (dev deploys only — every merge to development advances the patch)
@@ -94,6 +104,8 @@ jobs:
           # dev already has build_version's push; prd (called from release.yml) reads main,
           # already finalized by release.yml's version + promote jobs
           ref: ${{ env.DEPLOY_ENV == 'dev' && 'development' || 'main' }}
+          # full history + tags: the prd drift guard diffs the live theme against the last release tag
+          fetch-depth: 0
 
       # runs can't be renamed after the fact (no such API endpoint, and run-name is
       # fixed at trigger time — before the bump); surface the version in the summary
@@ -104,3 +116,5 @@ jobs:
         uses: fireballenterprise/workflows_shopify/actions/deploy_theme@v5
         with:
           env: ${{ env.DEPLOY_ENV }}
+          overwrite_live_edits: ${{ inputs.overwrite_live_edits }}
+          drift_ignore: ${{ inputs.drift_ignore }}

@@ -4,6 +4,8 @@ Shared GitHub Actions workflows for Fireball Enterprise's Shopify theme repos. T
 ## Versioning
 Tags use the standard `v` prefix: `vmajor.minor.patch` (e.g. `v5.0.0`). Every release is dual-tagged: the exact version (`v5.0.0`) plus a floating major tag (`v5`) that is force-moved to the latest `v5.x.x` release. Callers reference `@v5` to pick up non-breaking updates automatically; pin an exact tag (`@v5.0.0`) only when reproducibility matters more. Breaking changes bump the major and get a new floating tag.
 
+**`v5.1.0` (2026-09-29) — live-theme drift guard**: a `prd` deploy no longer blindly overwrites the live theme. After the 2026-09-29 incident (GUI edits made in the Shopify admin were force-pushed away by a release), `deploy_theme` now, for `env: prd`: pulls the live theme (`shopify theme pull`), uploads it as a `live-theme-backup-*` artifact (90 days), and diffs it against the previous release tag (`X.Y.Z` nearest `HEAD`) and the checkout. A live file matching neither is a GUI edit git doesn't have → the job **fails** listing the files (pull them into git — `invoke shopify.pull --site=<site> --env=prd` in fireball_orchestrator — commit, release again). New inputs on `deploy.yml` / `release.yml` / `deploy_theme`: `overwrite_live_edits` (default `false`) and `drift_ignore` (globs Shopify/apps rewrite themselves). Live pushes add `--nodelete` unless every remote-only file was deleted in git on purpose. `deploy.yml`'s checkout now uses `fetch-depth: 0`. Same rules as fireball_orchestrator's local `shopify.deploy` (`modules/shopify/theme_guard.py`).
+
 **`v5` (2026-09-05) — consume `workflows_common`**: the `bump_version` composite action moved to [`workflows_common`](https://github.com/fireballenterprise/workflows_common) (`actions/bump_version@v1`), and `release.yml`'s promote + GitHub-Release jobs are now `workflows_common` reusables (`promote.yml`, `github_release.yml`). Automated commits are authored `Levon Becker <LevonBecker@users.noreply.github.com>`. Behaviour is unchanged — callers just re-point `@v4 → @v5`.
 
 **`v4` (2026-09-03) — theme repos are pure content**: caller repos no longer carry any Python tooling (`tasks/`, `modules/`, `pyproject.toml`). The bump + deploy + theme-check logic moved into composite actions in this repo, and `tests.yml` now runs only theme-check + yamllint + actionlint (no `uv`, no `invoke`). Theme `VERSION` files stay plain `X.Y.Z`.
@@ -18,8 +20,8 @@ Cutting a release *of this repo*: bump `VERSION` (e.g. `5.1.0`) in the PR that c
 | Workflow | Purpose | Secrets |
 |----------|---------|---------|
 | `dawn_sync.yml` | Sync caller's `dawn_vanilla` branch with upstream Shopify/dawn (tag or latest) | none |
-| `deploy.yml` | Bump VERSION patch (dev merges) and deploy theme to dev/prd | yes — see below |
-| `release.yml` | Promote development → main, deploy prd, publish GitHub Release (optional `bump` input) | yes — see below |
+| `deploy.yml` | Bump VERSION patch (dev merges) and deploy theme to dev/prd (prd: drift guard; `overwrite_live_edits`, `drift_ignore` inputs) | yes — see below |
+| `release.yml` | Promote development → main, deploy prd, publish GitHub Release (optional `bump`, `overwrite_live_edits`, `drift_ignore` inputs) | yes — see below |
 | `tests.yml` | theme-check, yamllint, actionlint | none |
 
 `publish_release.yml` is not reusable — it releases this repo itself (see Versioning above).
@@ -33,7 +35,12 @@ Referenced fully-qualified (`uses: fireballenterprise/workflows_shopify/actions/
 | action | inputs | does |
 |---|---|---|
 | `bump_version` | `part` (patch/minor/major) | bump `VERSION`, output `version` (no commit) |
-| `deploy_theme` | `env` (dev/prd) | `npm i -g @shopify/cli` + `shopify theme push` (reads `SHOPIFY_*` from the job env) |
+| `deploy_theme` | `env` (dev/prd), `overwrite_live_edits`, `drift_ignore` | `npm i -g @shopify/cli` + `shopify theme push` (reads `SHOPIFY_*` from the job env). prd: pull live → backup artifact → drift guard (`drift_guard.py`) → push with `--allow-live` (+ `--nodelete` unless remote-only files were deleted in git on purpose) |
+
+### Rolling back a CI prd deploy
+Download the run's `live-theme-backup-<theme id>-<run>` artifact, unzip it, then
+`shopify theme push --theme <prd id> --store <store> --path <dir> --nodelete --allow-live [--only <file> ...]`
+(or, from fireball_orchestrator, `invoke shopify.restore --site=<site> --backup=<unzipped dir> [--files a,b]`).
 | `theme_check` | — | `npm i -g @shopify/cli` + `shopify theme check` |
 
 ## Caller Requirements (deploy/release)
